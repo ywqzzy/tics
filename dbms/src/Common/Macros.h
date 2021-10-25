@@ -35,7 +35,7 @@ public:
     Names expand(const Names & source_names, size_t level = 0) const;
 
     using MacroMap = std::map<String, String>;
-    const MacroMap getMacroMap() const { return macros; }
+    MacroMap getMacroMap() const { return macros; }
 
 private:
     MacroMap macros;
