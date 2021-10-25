@@ -36,7 +36,7 @@ class MemoryTracker
 
 public:
     MemoryTracker() = default;
-    explict MemoryTracker(Int64 limit_)
+    explicit MemoryTracker(Int64 limit_)
         : limit(limit_)
     {}
 
