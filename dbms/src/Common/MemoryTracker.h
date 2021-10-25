@@ -35,8 +35,8 @@ class MemoryTracker
     const char * description = nullptr;
 
 public:
-    MemoryTracker() {}
-    MemoryTracker(Int64 limit_)
+    MemoryTracker() = default;
+    explict MemoryTracker(Int64 limit_)
         : limit(limit_)
     {}
 

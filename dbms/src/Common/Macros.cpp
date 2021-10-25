@@ -10,7 +10,7 @@ namespace ErrorCodes
 extern const int SYNTAX_ERROR;
 }
 
-Macros::Macros() {}
+Macros::Macros() = default;
 
 Macros::Macros(const Poco::Util::AbstractConfiguration & config, const String & root_key)
 {
