@@ -1027,7 +1027,7 @@ std::unordered_map<tipb::ScalarFuncSig, String> scalar_func_map({
     //{tipb::ScalarFuncSig::MakeTime, "cast"},
     //{tipb::ScalarFuncSig::PeriodAdd, "cast"},
     //{tipb::ScalarFuncSig::PeriodDiff, "cast"},
-    //{tipb::ScalarFuncSig::Quarter, "cast"},
+    {tipb::ScalarFuncSig::Quarter, "toQuarter"},
 
     //{tipb::ScalarFuncSig::SecToTime, "cast"},
     //{tipb::ScalarFuncSig::TimeToSec, "cast"},

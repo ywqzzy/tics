@@ -24,3 +24,6 @@ target_link_libraries (strings_length dbms gtest_main clickhouse_functions)
 
 add_executable (strings_position gtest_strings_position.cpp)
 target_link_libraries (strings_position dbms gtest_main clickhouse_functions)
+
+add_executable (datetime_quarter gtest_datetime_quarter.cpp)
+target_link_libraries (datetime_quarter dbms gtest_main clickhouse_functions)
