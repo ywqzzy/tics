@@ -25,7 +25,6 @@ class TestDateTimeQuarter : public DB::tests::FunctionTest
 };
 
 
-
 TEST_F(TestDateTimeQuarter, Quarter)
 try
 { 
@@ -58,8 +57,7 @@ try
 
     ASSERT_COLUMN_EQ(
         createColumn<UInt8>({2}),
-        executeFunction(func_name, datetime_ctn2));
-    
+        executeFunction(func_name, datetime_ctn2));    
 }
 CATCH
 
