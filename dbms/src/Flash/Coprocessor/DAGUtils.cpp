@@ -9,6 +9,7 @@
 #include <Storages/Transaction/Datum.h>
 #include <Storages/Transaction/TiDB.h>
 #include <Storages/Transaction/TypeMapping.h>
+#include <Common/FmtUtils.h>
 
 #include <unordered_map>
 
@@ -707,7 +708,7 @@ const String & getFunctionName(const tipb::Expr & expr)
 
 String exprToString(const tipb::Expr & expr, const std::vector<NameAndTypePair> & input_col)
 {
-    std::stringstream ss;
+    FmtBuffer fmt_buf;
     String func_name;
     Field f;
     switch (expr.tp())
@@ -784,7 +785,7 @@ String exprToString(const tipb::Expr & expr, const std::vector<NameAndTypePair> 
     if (functionIsInOrGlobalInOperator(func_name))
     {
         // for in, we could not represent the function expr using func_name(param1, param2, ...)
-        ss << exprToString(expr.children(0), input_col) << " " << func_name << " (";
+        fmt_buf.fmtAppend("{} {} (", exprToString(expr.children(0), input_col), func_name);
         bool first = true;
         for (int i = 1; i < expr.children_size(); i++)
         {
@@ -792,14 +793,14 @@ String exprToString(const tipb::Expr & expr, const std::vector<NameAndTypePair> 
             if (first)
                 first = false;
             else
-                ss << ", ";
-            ss << s;
+                fmt_buf.append(", ");
+            fmt_buf.append(s);
         }
-        ss << ")";
+        fmt_buf.append(")");
     }
     else
     {
-        ss << func_name << "(";
+        fmt_buf.fmtAppend("{}(", func_name);
         bool first = true;
         for (const tipb::Expr & child : expr.children())
         {
@@ -807,12 +808,12 @@ String exprToString(const tipb::Expr & expr, const std::vector<NameAndTypePair> 
             if (first)
                 first = false;
             else
-                ss << ", ";
-            ss << s;
+                fmt_buf.append(", ");
+            fmt_buf.append(s);
         }
-        ss << ")";
+        fmt_buf.append(")");
     }
-    return ss.str();
+    return fmt_buf.toString();
 }
 
 const String & getTypeName(const tipb::Expr & expr)
