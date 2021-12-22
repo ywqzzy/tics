@@ -34,7 +34,7 @@ void removeData(Poco::Logger * log, const std::vector<std::string> & data_dirs)
     for (const auto & dir : data_dirs)
     {
         auto cmd = fmt::format("rm -rf {}", dir);
-        LOG_ERROR(log, cmd);
+        LOG_FMT_ERROR(log, cmd);
         system(cmd.c_str());
     }
 }
@@ -45,7 +45,7 @@ void print(Poco::Logger * log, uint64_t i, const DTWorkload::Statistics & stat)
     for (const auto & s : v)
     {
         std::cerr << s << std::endl;
-        LOG_INFO(log, s);
+        LOG_FMT_INFO(log, s);
     }
 }
 
@@ -76,15 +76,15 @@ void run(WorkloadOptions & opts)
     }
     catch (const DB::Exception & e)
     {
-        LOG_ERROR(log, e.message());
+        LOG_FMT_ERROR(log, e.message());
     }
     catch (const std::exception & e)
     {
-        LOG_ERROR(log, e.what());
+        LOG_FMT_ERROR(log, e.what());
     }
     catch (...)
     {
-        LOG_ERROR(log, "Unknow Exception");
+        LOG_FMT_ERROR(log, "Unknow Exception");
     }
 }
 

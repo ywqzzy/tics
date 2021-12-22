@@ -4,6 +4,7 @@
 #include <Common/StringUtils/StringUtils.h>
 #include <IO/WriteHelpers.h>
 #include <common/logger_useful.h>
+#include <fmt/core.h>
 
 #include <boost/algorithm/string/classification.hpp>
 #include <boost/algorithm/string/split.hpp>
@@ -163,21 +164,21 @@ std::pair<UInt64, UInt64> analyzeMetaFile( //
     {
         if (pos + sizeof(WBSize) > meta_data_end)
         {
-            LOG_WARNING(log, "Incomplete write batch, ignored.");
+            LOG_FMT_WARNING(log, "Incomplete write batch, ignored.");
             break;
         }
         const char * wb_start_pos = pos;
         const auto wb_bytes = PageUtil::get<WBSize>(pos);
         if (wb_start_pos + wb_bytes > meta_data_end)
         {
-            LOG_WARNING(log, "Incomplete write batch, ignored.");
+            LOG_FMT_WARNING(log, "Incomplete write batch, ignored.");
             break;
         }
 
         // this field is always true now
         const auto version = PageUtil::get<PageFileVersion>(pos);
         if (version != PageFile::CURRENT_VERSION)
-            throw Exception("Version not match, version: " + DB::toString(version), ErrorCodes::LOGICAL_ERROR);
+            throw Exception(fmt::format("Version not match, version: {}", version), ErrorCodes::LOGICAL_ERROR);
 
         // check the checksum of WriteBatch
         const auto wb_bytes_without_checksum = wb_bytes - sizeof(Checksum);
@@ -185,11 +186,9 @@ std::pair<UInt64, UInt64> analyzeMetaFile( //
         const auto checksum_calc = CityHash_v1_0_2::CityHash64(wb_start_pos, wb_bytes_without_checksum);
         if (wb_checksum != checksum_calc)
         {
-            std::stringstream ss;
-            ss << "expected: " << std::hex << wb_checksum << ", but: " << checksum_calc;
-            throw Exception("Write batch checksum not match, path: " + path + ", offset: " + DB::toString(wb_start_pos - meta_data)
-                                + ", bytes: " + DB::toString(wb_bytes) + ", " + ss.str(),
-                            ErrorCodes::CHECKSUM_DOESNT_MATCH);
+            throw Exception(
+                fmt::format("Write batch checksum not match, path: {}, offset: {}, bytes: {}, expected: {:#x}, but: {:#x}", path, wb_start_pos - meta_data, wb_bytes, wb_checksum, checksum_calc),
+                ErrorCodes::CHECKSUM_DOESNT_MATCH);
         }
 
         // recover WriteBatch
@@ -338,8 +337,9 @@ PageMap PageFile::Reader::read(PageIdAndEntries & to_read)
             auto checksum = CityHash_v1_0_2::CityHash64(pos, page_cache.size);
             if (checksum != page_cache.checksum)
             {
-                throw Exception("Page [" + DB::toString(page_id) + "] checksum not match, broken file: " + data_file_path,
-                                ErrorCodes::CHECKSUM_DOESNT_MATCH);
+                throw Exception(
+                    fmt::format("Page [{}]] checksum not match, broken file: {}", page_id, data_file_path),
+                    ErrorCodes::CHECKSUM_DOESNT_MATCH);
             }
         }
 
@@ -371,7 +371,7 @@ void PageFile::Reader::read(PageIdAndEntries & to_read, const PageHandler & hand
     for (const auto & p : to_read)
         buf_size = std::max(buf_size, p.second.size);
 
-    char * data_buf = (char *)alloc(buf_size);
+    char * data_buf = static_cast<char *>(alloc(buf_size));
     MemHolder mem_holder = createMemHolder(data_buf, [&, buf_size](char * p) { free(p, buf_size); });
 
 
@@ -387,8 +387,9 @@ void PageFile::Reader::read(PageIdAndEntries & to_read, const PageHandler & hand
             auto checksum = CityHash_v1_0_2::CityHash64(data_buf, page_cache.size);
             if (checksum != page_cache.checksum)
             {
-                throw Exception("Page [" + DB::toString(page_id) + "] checksum not match, broken file: " + data_file_path,
-                                ErrorCodes::CHECKSUM_DOESNT_MATCH);
+                throw Exception(
+                    fmt::format("Page [{}] checksum not match, broken file: {}", page_id, data_file_path),
+                    ErrorCodes::CHECKSUM_DOESNT_MATCH);
             }
         }
 
@@ -444,14 +445,14 @@ std::pair<PageFile, PageFile::Type> PageFile::recover(const String & parent_path
     if (!startsWith(page_file_name, folder_prefix_formal) && !startsWith(page_file_name, folder_prefix_temp)
         && !startsWith(page_file_name, folder_prefix_legacy) && !startsWith(page_file_name, folder_prefix_checkpoint))
     {
-        LOG_INFO(log, "Not page file, ignored " + page_file_name);
+        LOG_FMT_INFO(log, "Not page file, ignored {}", page_file_name);
         return {{}, Type::Invalid};
     }
     std::vector<std::string> ss;
     boost::split(ss, page_file_name, boost::is_any_of("_"));
     if (ss.size() != 3)
     {
-        LOG_INFO(log, "Unrecognized file, ignored: " + page_file_name);
+        LOG_FMT_INFO(log, "Unrecognized file, ignored: {}", page_file_name);
         return {{}, Type::Invalid};
     }
 
@@ -460,7 +461,7 @@ std::pair<PageFile, PageFile::Type> PageFile::recover(const String & parent_path
     PageFile pf(file_id, level, parent_path, file_provider, Type::Formal, /* is_create */ false, log);
     if (ss[0] == folder_prefix_temp)
     {
-        LOG_INFO(log, "Temporary page file, ignored: " + page_file_name);
+        LOG_FMT_INFO(log, "Temporary page file, ignored: {}", page_file_name);
         pf.type = Type::Temp;
         return {pf, Type::Temp};
     }
@@ -470,7 +471,7 @@ std::pair<PageFile, PageFile::Type> PageFile::recover(const String & parent_path
         // ensure meta exist
         if (!Poco::File(pf.metaPath()).exists())
         {
-            LOG_INFO(log, "Broken page without meta file, ignored: " + pf.metaPath());
+            LOG_FMT_INFO(log, "Broken page without meta file, ignored: {}", pf.metaPath());
             return {{}, Type::Invalid};
         }
 
@@ -481,13 +482,13 @@ std::pair<PageFile, PageFile::Type> PageFile::recover(const String & parent_path
         // ensure both meta && data exist
         if (!Poco::File(pf.metaPath()).exists())
         {
-            LOG_INFO(log, "Broken page without meta file, ignored: " + pf.metaPath());
+            LOG_FMT_INFO(log, "Broken page without meta file, ignored: {}", pf.metaPath());
             return {{}, Type::Invalid};
         }
 
         if (!Poco::File(pf.dataPath()).exists())
         {
-            LOG_INFO(log, "Broken page without data file, ignored: " + pf.dataPath());
+            LOG_FMT_INFO(log, "Broken page without data file, ignored: {}", pf.dataPath());
             return {{}, Type::Invalid};
         }
         return {pf, Type::Formal};
@@ -497,7 +498,7 @@ std::pair<PageFile, PageFile::Type> PageFile::recover(const String & parent_path
         pf.type = Type::Checkpoint;
         if (!Poco::File(pf.metaPath()).exists())
         {
-            LOG_INFO(log, "Broken page without meta file, ignored: " + pf.metaPath());
+            LOG_FMT_INFO(log, "Broken page without meta file, ignored: {}", pf.metaPath());
             return {{}, Type::Invalid};
         }
         pf.type = Type::Checkpoint;
@@ -505,7 +506,7 @@ std::pair<PageFile, PageFile::Type> PageFile::recover(const String & parent_path
         return {pf, Type::Checkpoint};
     }
 
-    LOG_INFO(log, "Unrecognized file prefix, ignored: " + page_file_name);
+    LOG_FMT_INFO(log, "Unrecognized file prefix, ignored: {}", page_file_name);
     return {{}, Type::Invalid};
 }
 
@@ -524,14 +525,14 @@ void PageFile::readAndSetPageMetas(PageEntriesEdit & edit)
     const auto path = metaPath();
     Poco::File file(path);
     if (unlikely(!file.exists()))
-        throw Exception("Try to read meta of PageFile_" + DB::toString(file_id) + "_" + DB::toString(level)
-                            + ", but not exists. Path: " + path,
-                        ErrorCodes::LOGICAL_ERROR);
+        throw Exception(
+            fmt::format("Try to read meta of PageFile_{}_{}, but not exists. Path: {}", file_id, level, path),
+            ErrorCodes::LOGICAL_ERROR);
 
     const size_t file_size = file.getSize();
     auto meta_file = file_provider->newRandomAccessFile(path, EncryptionPath(path, ""));
 
-    char * meta_data = (char *)alloc(file_size);
+    char * meta_data = static_cast<char *>(alloc(file_size));
     SCOPE_EXIT({ free(meta_data, file_size); });
     meta_file->pread(meta_data, file_size, 0);
 

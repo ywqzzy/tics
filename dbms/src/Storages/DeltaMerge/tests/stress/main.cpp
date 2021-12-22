@@ -99,16 +99,16 @@ void runProxy(const StressOptions & opts, Poco::Logger * log)
             DB::DM::tests::DMStressProxy store_proxy(opts);
             store_proxy.run();
             auto end = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-            LOG_INFO(log, "run_count: " << run_count << " start: " << start << " end: " << end << " use time: " << end - start);
+            LOG_FMT_INFO(log, "run_count: {} start: {} end: {} use time: {}", run_count, start, end, end - start);
         }
     }
     catch (std::exception & e)
     {
-        LOG_INFO(log, e.what());
+        LOG_FMT_INFO(log, e.what());
     }
     catch (...)
     {
-        LOG_INFO(log, "Unknow exception");
+        LOG_FMT_INFO(log, "Unknow exception");
     }
     DB::tests::TiFlashTestEnv::shutdown();
 }
@@ -121,7 +121,7 @@ int main(int argc, char * argv[])
     {
         DB::FailPointHelper::enableFailPoint(fp);
     }
-    auto log = &Poco::Logger::get("DMStressProxy");
+    auto * log = &Poco::Logger::get("DMStressProxy");
     UInt64 run_count = 0;
     static std::uniform_int_distribution<unsigned> dist(opts.min_restart_sec, opts.max_restart_sec);
     std::default_random_engine generator;
@@ -129,11 +129,11 @@ int main(int argc, char * argv[])
     for (;;)
     {
         run_count++;
-        LOG_INFO(log, "main loop run count: " << run_count);
+        LOG_FMT_INFO(log, "main loop run count: {}", run_count);
         auto fpid = fork();
         if (fpid < 0)
         {
-            LOG_INFO(log, "fork error in run count " << run_count);
+            LOG_FMT_INFO(log, "fork error in run count {}", run_count);
         }
         else if (fpid == 0)
         {
@@ -149,7 +149,7 @@ int main(int argc, char * argv[])
             wait(&status);
             if (WIFEXITED(status))
             {
-                LOG_INFO(log, "child pid " << fpid << "exit normally");
+                LOG_FMT_INFO(log, "child pid {} exit normally", fpid);
                 break;
             }
         }
