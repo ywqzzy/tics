@@ -80,7 +80,7 @@ public:
 
     PageId getMaxId();
 
-    void write(const WriteBatch & write_batch);
+    void write(const WriteBatch & wb);
 
     SnapshotPtr getSnapshot();
     size_t getNumSnapshots() const;

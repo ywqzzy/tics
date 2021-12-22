@@ -178,7 +178,7 @@ PageStorage::PageStorage(String name, const String & storage_path_, const Config
         catch (Exception & e)
         {
             /// Better diagnostics.
-            e.addMessage("(while applying edit from " + page_file.folderPath() + " to PageStorage: " + storage_name + ")");
+            e.addMessage(fmt::format("(while applying edit from {} to PageStorage: {})", page_file.folderPath(), storage_name));
             throw;
         }
     }
@@ -301,7 +301,7 @@ void PageStorage::write(const WriteBatch & wb)
     // persist the invalid ref pair into PageFile.
     versioned_page_entries.apply(edit);
 
-    for (auto & w : wb.getWrites())
+    for (const auto & w : wb.getWrites())
     {
         switch (w.type)
         {

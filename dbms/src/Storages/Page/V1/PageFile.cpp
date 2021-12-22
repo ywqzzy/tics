@@ -78,8 +78,8 @@ std::pair<ByteBuffer, ByteBuffer> genWriteData( //
 
     meta_write_bytes += sizeof(Checksum);
 
-    char * meta_buffer = (char *)page_file.alloc(meta_write_bytes);
-    char * data_buffer = (char *)page_file.alloc(data_write_bytes);
+    char * meta_buffer = static_cast<char *>(page_file.alloc(meta_write_bytes));
+    char * data_buffer = static_cast<char *>(page_file.alloc(data_write_bytes));
 
     char * meta_pos = meta_buffer;
     char * data_pos = data_buffer;
@@ -323,7 +323,7 @@ PageMap PageFile::Reader::read(PageIdAndEntries & to_read)
     // 2. Pages with small gaps between them can also read together.
     // 3. Refactor this function to support iterator mode, and then use hint to do data pre-read.
 
-    char * data_buf = (char *)alloc(buf_size);
+    char * data_buf = static_cast<char *>(alloc(buf_size));
     MemHolder mem_holder = createMemHolder(data_buf, [&, buf_size](char * p) { free(p, buf_size); });
 
     char * pos = data_buf;
