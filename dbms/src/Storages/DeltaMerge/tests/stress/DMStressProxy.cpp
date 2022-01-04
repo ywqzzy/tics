@@ -60,8 +60,9 @@ DMStressProxy::DMStressProxy(const StressOptions & opts_)
         {
             if (block.columns() != 1)
             {
-                LOG_FMT_ERROR(log, "block columns must be 1.");
-                throw DB::Exception("block columns must be 1.", ErrorCodes::LOGICAL_ERROR);
+                String msg = "block columns must be 1.";
+                LOG_ERROR(log, msg);
+                throw DB::Exception(msg, ErrorCodes::LOGICAL_ERROR);
             }
             // only one columns, so only need to fetch begin iterator.
             auto itr = block.begin();
@@ -192,7 +193,7 @@ UInt64 DMStressProxy::countRows(UInt32 rnd_break_prob)
 void DMStressProxy::insertMultiThread()
 {
     auto work = [&](UInt32 id) {
-        std::string thread_name = fmt::format("dm_insert_{}", id);
+        std::string thread_name = "dm_insert_" + std::to_string(id);
         setThreadName(thread_name.c_str());
         while (!stop)
         {
@@ -354,9 +355,9 @@ void DMStressProxy::verifySingleThread()
 
 void DMStressProxy::waitVerifyThread()
 {
-    LOG_FMT_INFO(log, "wait verify thread begin");
+    LOG_INFO(log, "wait verify thread begin");
     verify_thread.join();
-    LOG_FMT_INFO(log, "wait verify thread end");
+    LOG_INFO(log, "wait verify thread end");
 }
 
 void DMStressProxy::verify()
@@ -376,7 +377,7 @@ void DMStressProxy::verify()
     while (Block block = in->read())
     {
         dm_total_count += block.rows();
-        std::string msg = fmt::format("Verify rows: {} columns. columns must be 1.", block.rows(), block.columns());
+        String msg = fmt::format("Verify rows: {} columns. columns must be 1.", block.rows(), block.columns());
         if (block.columns() != 1)
         {
             LOG_FMT_ERROR(log, msg);
@@ -389,8 +390,9 @@ void DMStressProxy::verify()
             Int64 id = itr->column->getInt(i);
             if (!pks.exist(id))
             {
-                LOG_FMT_ERROR(log, "Verify id {} not found from pks.", id);
-                throw DB::Exception(fmt::format("id {} not found from pks.", id), ErrorCodes::LOGICAL_ERROR);
+                String err_msg = fmt::format("Verify id {} not found from pks.", id);
+                LOG_ERROR(log, err_msg);
+                throw DB::Exception(err_msg, ErrorCodes::LOGICAL_ERROR);
             }
         }
     }
