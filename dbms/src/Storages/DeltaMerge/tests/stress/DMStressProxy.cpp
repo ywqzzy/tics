@@ -377,10 +377,10 @@ void DMStressProxy::verify()
     while (Block block = in->read())
     {
         dm_total_count += block.rows();
-        String msg = fmt::format("Verify rows: {} columns. columns must be 1.", block.rows(), block.columns());
+        String msg = fmt::format("Verify rows: {} columns: {}. columns must be 1.", block.rows(), block.columns());
         if (block.columns() != 1)
         {
-            LOG_FMT_ERROR(log, msg);
+            LOG_ERROR(log, msg);
             throw DB::Exception(msg, ErrorCodes::LOGICAL_ERROR);
         }
 

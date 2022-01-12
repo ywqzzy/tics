@@ -114,7 +114,7 @@ std::pair<ByteBuffer, ByteBuffer> genWriteData( //
             else if (write.type == WriteBatch::WriteType::UPSERT)
                 edit.upsertPage(write.page_id, pc);
 
-            PageUtil::put(meta_pos, (PageId)write.page_id);
+            PageUtil::put(meta_pos, write.page_id);
             PageUtil::put(meta_pos, (PageTag)write.tag);
             PageUtil::put(meta_pos, (PageOffset)page_data_file_off);
             PageUtil::put(meta_pos, (PageSize)write.size);

@@ -108,7 +108,7 @@ public:
         case Type::Checkpoint:
             return "Checkpoint";
         default:
-            throw Exception("Unexpected PageFile::Type: " + DB::toString((int)type));
+            throw Exception("Unexpected PageFile::Type: " + DB::toString(static_cast<int>(type)));
         }
     }
 

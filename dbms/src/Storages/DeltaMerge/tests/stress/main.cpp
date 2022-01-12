@@ -104,11 +104,11 @@ void runProxy(const StressOptions & opts, Poco::Logger * log)
     }
     catch (std::exception & e)
     {
-        LOG_FMT_INFO(log, e.what());
+        LOG_INFO(log, e.what());
     }
     catch (...)
     {
-        LOG_FMT_INFO(log, "Unknow exception");
+        LOG_INFO(log, "Unknow exception");
     }
     DB::tests::TiFlashTestEnv::shutdown();
 }

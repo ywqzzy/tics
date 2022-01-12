@@ -119,7 +119,7 @@ private:
 
     std::set<PageFile, PageFile::Comparator> gcCompactLegacy(std::set<PageFile, PageFile::Comparator> && page_files);
 
-    void prepareSnapshotWriteBatch(const SnapshotPtr snapshot, WriteBatch & wb);
+    static void prepareSnapshotWriteBatch(SnapshotPtr snapshot, WriteBatch & wb);
 
     static constexpr const char * ARCHIVE_SUBDIR = "archive";
 
