@@ -3,9 +3,10 @@
 #include <Storages/DeltaMerge/tools/workload/Options.h>
 #include <Storages/DeltaMerge/tools/workload/Utils.h>
 #include <Storages/PathPool.h>
-#include <TestUtils/TiFlashTestBasic.h>
+#include <TestUtils/TiFlashTestEnv.h>
 #include <common/logger_useful.h>
 #include <signal.h>
+#include <sys/wait.h>
 
 #include <fstream>
 #include <random>
@@ -36,8 +37,8 @@ void removeData(Poco::Logger * log, const std::vector<std::string> & data_dirs)
     for (const auto & dir : data_dirs)
     {
         auto cmd = fmt::format("rm -rf {}", dir);
-        LOG_FMT_ERROR(log, cmd);
-        system(cmd.c_str());
+        LOG_ERROR(log, cmd);
+        [[maybe_unused]] int ret = system(cmd.c_str());
     }
 }
 
@@ -74,7 +75,7 @@ void print(Poco::Logger * log, uint64_t i, const BasicStatistics & stat, Workloa
                          stat.write_sec,
                          stat.read_count,
                          stat.read_sec);
-    LOG_FMT_INFO(log, s);
+    LOG_INFO(log, s);
 }
 
 void outputResultHeader()
@@ -95,7 +96,7 @@ void outputResult(Poco::Logger * log, const std::vector<BasicStatistics> & stats
     }
     // Date, Table Schema, Workload, Init Seconds, Write Speed(rows count), Read Speed(rows count)
     auto s = fmt::format("{},{},{},{:.2f},{:.2f},{:.2f}", localDate(), opts.table, opts.write_key_distribution, total_stat.init_sec, total_stat.write_count / total_stat.write_sec, total_stat.read_count / total_stat.read_sec);
-    LOG_FMT_INFO(log, s);
+    LOG_INFO(log, s);
     std::cout << s << std::endl;
 }
 
@@ -108,7 +109,7 @@ void run(WorkloadOptions & opts)
 {
     init(opts);
     auto * log = &Poco::Logger::get("DTWorkload_main");
-    LOG_FMT_INFO(log, opts.toString());
+    LOG_INFO(log, opts.toString());
     auto data_dirs = DB::tests::TiFlashTestEnv::getGlobalContext().getPathPool().listPaths();
     std::vector<BasicStatistics> basic_stats;
     try
@@ -130,15 +131,15 @@ void run(WorkloadOptions & opts)
     }
     catch (const DB::Exception & e)
     {
-        LOG_FMT_ERROR(log, e.message());
+        LOG_ERROR(log, e.message());
     }
     catch (const std::exception & e)
     {
-        LOG_FMT_ERROR(log, e.what());
+        LOG_ERROR(log, e.what());
     }
     catch (...)
     {
-        LOG_FMT_ERROR(log, "Unknow Exception");
+        LOG_ERROR(log, "Unknow Exception");
     }
 
     outputResult(log, basic_stats, opts);
@@ -163,7 +164,7 @@ void randomKill(WorkloadOptions & opts, pid_t pid)
         std::cerr << fmt::format("{} kill pid {} succ.", localTime(), pid) << std::endl;
     }
     int status = 0;
-    wait(&status);
+    ::wait(&status);
 }
 
 void doRunAndRandomKill(WorkloadOptions & opts)

@@ -3,6 +3,7 @@
 #include <DataTypes/DataTypeNullable.h>
 #include <DataTypes/FieldToDataType.h>
 #include <Flash/Coprocessor/DAGCodec.h>
+#include <Flash/Coprocessor/DAGContext.h>
 #include <Flash/Coprocessor/DAGUtils.h>
 #include <Functions/FunctionHelpers.h>
 #include <Interpreters/Context.h>
@@ -461,7 +462,6 @@ const std::unordered_map<tipb::ScalarFuncSig, String> scalar_func_map({
     //{tipb::ScalarFuncSig::SubDateDurationInt, "cast"},
     //{tipb::ScalarFuncSig::SubDateDatetimeReal, "cast"},
     //{tipb::ScalarFuncSig::SubDateDatetimeDecimal, "cast"},
-    {tipb::ScalarFuncSig::AddDateStringReal, "date_add"},
     //{tipb::ScalarFuncSig::AddDateIntReal, "cast"},
     //{tipb::ScalarFuncSig::AddDateIntDecimal, "cast"},
     //{tipb::ScalarFuncSig::AddDateDatetimeReal, "cast"},
@@ -541,7 +541,7 @@ const std::unordered_map<tipb::ScalarFuncSig, String> scalar_func_map({
     //{tipb::ScalarFuncSig::MakeTime, "cast"},
     //{tipb::ScalarFuncSig::PeriodAdd, "cast"},
     //{tipb::ScalarFuncSig::PeriodDiff, "cast"},
-    //{tipb::ScalarFuncSig::Quarter, "cast"},
+    {tipb::ScalarFuncSig::Quarter, "toQuarter"},
 
     //{tipb::ScalarFuncSig::SecToTime, "cast"},
     //{tipb::ScalarFuncSig::TimeToSec, "cast"},
@@ -565,6 +565,7 @@ const std::unordered_map<tipb::ScalarFuncSig, String> scalar_func_map({
 
     //{tipb::ScalarFuncSig::AddDateStringString, "cast"},
     {tipb::ScalarFuncSig::AddDateStringInt, "date_add"},
+    {tipb::ScalarFuncSig::AddDateStringReal, "date_add"},
     //{tipb::ScalarFuncSig::AddDateStringDecimal, "cast"},
     //{tipb::ScalarFuncSig::AddDateIntString, "cast"},
     //{tipb::ScalarFuncSig::AddDateIntInt, "cast"},
@@ -573,6 +574,7 @@ const std::unordered_map<tipb::ScalarFuncSig, String> scalar_func_map({
 
     //{tipb::ScalarFuncSig::SubDateStringString, "cast"},
     {tipb::ScalarFuncSig::SubDateStringInt, "date_sub"},
+    {tipb::ScalarFuncSig::SubDateStringReal, "date_sub"},
     //{tipb::ScalarFuncSig::SubDateStringDecimal, "cast"},
     //{tipb::ScalarFuncSig::SubDateIntString, "cast"},
     //{tipb::ScalarFuncSig::SubDateIntInt, "cast"},
@@ -620,8 +622,8 @@ const std::unordered_map<tipb::ScalarFuncSig, String> scalar_func_map({
 
     {tipb::ScalarFuncSig::Lower, "lowerBinary"},
     {tipb::ScalarFuncSig::LowerUTF8, "lowerUTF8"},
-    //{tipb::ScalarFuncSig::LpadUTF8, "cast"},
-    //{tipb::ScalarFuncSig::Lpad, "cast"},
+    {tipb::ScalarFuncSig::LpadUTF8, "lpadUTF8"},
+    {tipb::ScalarFuncSig::Lpad, "lpad"},
     //{tipb::ScalarFuncSig::MakeSet, "cast"},
     //{tipb::ScalarFuncSig::OctInt, "cast"},
     //{tipb::ScalarFuncSig::OctString, "cast"},
@@ -633,10 +635,10 @@ const std::unordered_map<tipb::ScalarFuncSig, String> scalar_func_map({
     //{tipb::ScalarFuncSig::Reverse, "cast"},
     {tipb::ScalarFuncSig::RightUTF8, "rightUTF8"},
     //{tipb::ScalarFuncSig::Right, "cast"},
-    //{tipb::ScalarFuncSig::RpadUTF8, "cast"},
-    //{tipb::ScalarFuncSig::Rpad, "cast"},
+    {tipb::ScalarFuncSig::RpadUTF8, "rpadUTF8"},
+    {tipb::ScalarFuncSig::Rpad, "rpad"},
     //{tipb::ScalarFuncSig::Space, "cast"},
-    //{tipb::ScalarFuncSig::Strcmp, "cast"},
+    {tipb::ScalarFuncSig::Strcmp, "strcmp"},
     {tipb::ScalarFuncSig::Substring2ArgsUTF8, "substringUTF8"},
     {tipb::ScalarFuncSig::Substring3ArgsUTF8, "substringUTF8"},
     //{tipb::ScalarFuncSig::Substring2Args, "cast"},
@@ -656,6 +658,38 @@ const std::unordered_map<tipb::ScalarFuncSig, String> scalar_func_map({
     {tipb::ScalarFuncSig::Upper, "upperBinary"},
     //{tipb::ScalarFuncSig::CharLength, "upper"},
 });
+
+template <typename GetColumnsFunc, typename GetDataTypeFunc>
+void assertBlockSchema(
+    GetColumnsFunc && get_columns,
+    GetDataTypeFunc && get_datatype,
+    const Block & block,
+    const String & context_description)
+{
+    size_t columns = get_columns();
+    if (block.columns() != columns)
+        throw Exception(
+            fmt::format(
+                "Block schema mismatch in {}: different number of columns: expected {} columns, got {} columns",
+                context_description,
+                columns,
+                block.columns()));
+
+    for (size_t i = 0; i < columns; ++i)
+    {
+        const auto & actual = block.getByPosition(i).type;
+        const auto & expected = get_datatype(i);
+
+        if (!expected->equals(*actual))
+            throw Exception(
+                fmt::format(
+                    "Block schema mismatch in {}: different types: expected {}, got {}",
+                    context_description,
+                    expected->getName(),
+                    actual->getName()));
+    }
+}
+
 } // namespace
 
 bool isScalarFunctionExpr(const tipb::Expr & expr)
@@ -1150,24 +1184,28 @@ grpc::StatusCode tiflashErrorCodeToGrpcStatusCode(int error_code)
     return grpc::StatusCode::INTERNAL;
 }
 
-void assertBlockSchema(const DataTypes & expected_types, const Block & block, const std::string & context_description)
+void assertBlockSchema(
+    const DataTypes & expected_types,
+    const Block & block,
+    const String & context_description)
 {
-    size_t columns = expected_types.size();
-    if (block.columns() != columns)
-        throw Exception("Block schema mismatch in " + context_description + ": different number of columns: expected "
-                        + std::to_string(columns) + " columns, got " + std::to_string(block.columns()) + " columns");
+    assertBlockSchema(
+        [&] { return expected_types.size(); },
+        [&](auto i) { return expected_types[i]; },
+        block,
+        context_description);
+}
 
-    for (size_t i = 0; i < columns; ++i)
-    {
-        const auto & actual = block.getByPosition(i).type;
-        const auto & expected = expected_types[i];
-
-        if (!expected->equals(*actual))
-        {
-            throw Exception("Block schema mismatch in " + context_description + ": different types: expected " + expected->getName()
-                            + ", got " + actual->getName());
-        }
-    }
+void assertBlockSchema(
+    const Block & header,
+    const Block & block,
+    const String & context_description)
+{
+    assertBlockSchema(
+        [&] { return header.columns(); },
+        [&](auto i) { return header.getByPosition(i).type; },
+        block,
+        context_description);
 }
 
 tipb::DAGRequest getDAGRequestFromStringWithRetry(const String & s)
@@ -1190,6 +1228,29 @@ tipb::DAGRequest getDAGRequestFromStringWithRetry(const String & s)
         }
     }
     return dag_req;
+}
+
+tipb::EncodeType analyzeDAGEncodeType(DAGContext & dag_context)
+{
+    const tipb::DAGRequest & dag_request = *dag_context.dag_request;
+    const tipb::EncodeType encode_type = dag_request.encode_type();
+    if (dag_context.isMPPTask() && !dag_context.isRootMPPTask())
+    {
+        /// always use CHBlock encode type for data exchange between TiFlash nodes
+        return tipb::EncodeType::TypeCHBlock;
+    }
+    if (dag_request.has_force_encode_type() && dag_request.force_encode_type())
+    {
+        assert(encode_type == tipb::EncodeType::TypeCHBlock);
+        return encode_type;
+    }
+    if (isUnsupportedEncodeType(dag_context.result_field_types, encode_type))
+        return tipb::EncodeType::TypeDefault;
+    if (encode_type == tipb::EncodeType::TypeChunk && dag_request.has_chunk_memory_layout()
+        && dag_request.chunk_memory_layout().has_endian() && dag_request.chunk_memory_layout().endian() == tipb::Endian::BigEndian)
+        // todo support BigEndian encode for chunk encode type
+        return tipb::EncodeType::TypeDefault;
+    return encode_type;
 }
 
 } // namespace DB

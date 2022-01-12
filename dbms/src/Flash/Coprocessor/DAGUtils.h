@@ -14,6 +14,8 @@
 
 namespace DB
 {
+class DAGContext;
+
 bool isLiteralExpr(const tipb::Expr & expr);
 Field decodeLiteral(const tipb::Expr & expr);
 bool isFunctionExpr(const tipb::Expr & expr);
@@ -43,7 +45,17 @@ TiDB::TiDBCollatorPtr getCollatorFromExpr(const tipb::Expr & expr);
 TiDB::TiDBCollatorPtr getCollatorFromFieldType(const tipb::FieldType & field_type);
 bool hasUnsignedFlag(const tipb::FieldType & tp);
 grpc::StatusCode tiflashErrorCodeToGrpcStatusCode(int error_code);
-void assertBlockSchema(const DataTypes & expected_types, const Block & block, const std::string & context_description);
+
+void assertBlockSchema(
+    const DataTypes & expected_types,
+    const Block & block,
+    const String & context_description);
+
+void assertBlockSchema(
+    const Block & header,
+    const Block & block,
+    const String & context_description);
+
 class UniqueNameGenerator
 {
 private:
@@ -66,5 +78,6 @@ public:
 };
 
 tipb::DAGRequest getDAGRequestFromStringWithRetry(const String & s);
+tipb::EncodeType analyzeDAGEncodeType(DAGContext & dag_context);
 
 } // namespace DB
