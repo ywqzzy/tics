@@ -164,14 +164,14 @@ std::pair<UInt64, UInt64> analyzeMetaFile( //
     {
         if (pos + sizeof(WBSize) > meta_data_end)
         {
-            LOG_FMT_WARNING(log, "Incomplete write batch, ignored.");
+            LOG_WARNING(log, "Incomplete write batch, ignored.");
             break;
         }
         const char * wb_start_pos = pos;
         const auto wb_bytes = PageUtil::get<WBSize>(pos);
         if (wb_start_pos + wb_bytes > meta_data_end)
         {
-            LOG_FMT_WARNING(log, "Incomplete write batch, ignored.");
+            LOG_WARNING(log, "Incomplete write batch, ignored.");
             break;
         }
 
