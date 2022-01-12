@@ -10,8 +10,6 @@
 #include <set>
 #include <utility>
 
-#include "Storages/Page/V1/Page.h"
-
 namespace DB
 {
 namespace ErrorCodes
@@ -806,7 +804,7 @@ void PageStorage::archievePageFiles(const std::set<PageFile, PageFile::Comparato
     for (const auto & page_file : page_files)
     {
         Poco::Path path(page_file.folderPath());
-        auto dest = fmt::format("{}/{}", archive_path.toString(), path.getFileName());
+        auto dest = archive_path.toString() + "/" + path.getFileName();
         Poco::File file(path);
         if (file.exists())
             file.moveTo(dest);
