@@ -14,6 +14,7 @@
 
 #pragma once
 
+#include <Common/Exception.h>
 #include <Common/Logger.h>
 #include <Common/MPMCQueue.h>
 #include <Common/ThreadManager.h>
@@ -30,6 +31,7 @@
 #include <common/types.h>
 
 #include <atomic>
+
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-parameter"
@@ -248,10 +250,10 @@ private:
 };
 
 template <bool enable_fine_grained_shuffle>
-class LocalTunnelSender : public TunnelSender
+class LocalTunnelSenderV2 : public TunnelSender
 {
 public:
-    LocalTunnelSender(
+    LocalTunnelSenderV2(
         size_t source_index_,
         LocalRequestHandler & local_request_handler_,
         const LoggerPtr & log_,
@@ -261,11 +263,19 @@ public:
         , source_index(source_index_)
         , local_request_handler(local_request_handler_)
         , is_done(false)
-    {}
-
-    ~LocalTunnelSender() override
     {
-        closeLocalTunnel(false, "");
+        local_request_handler.setAlive();
+    }
+
+    ~LocalTunnelSenderV2() override
+    {
+        RUNTIME_ASSERT(is_done, "Local tunnel is destructed before called by cancel() or finish()");
+
+        // It should only be called in the destructor.
+        //
+        // This function is used to hold the destruction of receiver so that the push operation
+        // of local tunnel is always valid(valid means pushing data to an alive reveiver).
+        local_request_handler.closeConnection();
     }
 
     bool push(TrackedMppDataPacketPtr && data) override
@@ -278,42 +288,42 @@ public:
         // is responsible for deleting receiver_mem_tracker must be destroyed after these local tunnels.
         data->switchMemTracker(local_request_handler.recv_mem_tracker);
 
-        auto res = local_request_handler.write<enable_fine_grained_shuffle>(source_index, data);
-
-        if (unlikely(!res))
-            closeLocalTunnel(true, "Push mpp packet failed at local tunnel");
-        return res;
+        return local_request_handler.write<enable_fine_grained_shuffle>(source_index, data);
     }
 
     void cancelWith(const String & reason) override
     {
-        closeLocalTunnel(true, reason);
+        finishWrite(true, reason);
     }
 
     bool finish() override
     {
-        closeLocalTunnel(false, "");
+        finishWrite(false, "");
         return true;
     }
 
 private:
+    friend class tests::TestMPPTunnel;
+
     bool checkPacketErr(TrackedMppDataPacketPtr & packet)
     {
         if (packet->hasError())
         {
-            closeLocalTunnel(true, packet->error());
+            finishWrite(true, packet->error());
             return true;
         }
         return false;
     }
 
-    void closeLocalTunnel(bool meet_error, const String & local_err_msg)
+    // Need to tell receiver that the local tunnel will be closed and the receiver should
+    // close channels otherwise the MPPTask may hang.
+    void finishWrite(bool meet_error, const String & local_err_msg)
     {
         bool expect = false;
         if (is_done.compare_exchange_strong(expect, true))
         {
             consumer_state.setMsg(local_err_msg);
-            local_request_handler.connectionLocalDone(meet_error, local_err_msg);
+            local_request_handler.writeDone(meet_error, local_err_msg);
         }
     }
 
@@ -322,11 +332,46 @@ private:
     std::atomic_bool is_done;
 };
 
+// TODO remove it in the future
+class LocalTunnelSenderV1 : public TunnelSender
+{
+public:
+    using Base = TunnelSender;
+    using Base::Base;
+
+    LocalTunnelSenderV1(size_t queue_size, MemoryTrackerPtr & memory_tracker_, const LoggerPtr & log_, const String & tunnel_id_, std::atomic<Int64> * data_size_in_queue_)
+        : TunnelSender(memory_tracker_, log_, tunnel_id_, data_size_in_queue_)
+        , send_queue(queue_size)
+    {}
+
+    TrackedMppDataPacketPtr readForLocal();
+
+    bool push(TrackedMppDataPacketPtr && data) override
+    {
+        return send_queue.push(std::move(data)) == MPMCQueueResult::OK;
+    }
+
+    void cancelWith(const String & reason) override
+    {
+        send_queue.cancelWith(reason);
+    }
+
+    bool finish() override
+    {
+        return send_queue.finish();
+    }
+
+private:
+    bool cancel_reason_sent = false;
+    MPMCQueue<TrackedMppDataPacketPtr> send_queue;
+};
+
 using TunnelSenderPtr = std::shared_ptr<TunnelSender>;
 using SyncTunnelSenderPtr = std::shared_ptr<SyncTunnelSender>;
 using AsyncTunnelSenderPtr = std::shared_ptr<AsyncTunnelSender>;
-using LocalTunnelSenderPtr = std::shared_ptr<LocalTunnelSender<false>>;
-using LocalTunnelFineGrainedSenderPtr = std::shared_ptr<LocalTunnelSender<true>>;
+using LocalTunnelSenderV2Ptr = std::shared_ptr<LocalTunnelSenderV2<false>>;
+using LocalTunnelFineGrainedSenderV2Ptr = std::shared_ptr<LocalTunnelSenderV2<true>>;
+using LocalTunnelSenderV1Ptr = std::shared_ptr<LocalTunnelSenderV1>;
 
 /**
  * MPPTunnel represents the sender of an exchange connection.
@@ -394,10 +439,12 @@ public:
     // a MPPConn request has arrived. it will build connection by this tunnel;
     void connectSync(PacketWriter * writer);
 
-    void connectLocal(size_t source_index, LocalRequestHandler & local_request_handler, bool is_fine_grained);
+    void connectLocalV2(size_t source_index, LocalRequestHandler & local_request_handler, bool is_fine_grained);
 
     // like `connect` but it's intended to connect async grpc.
     void connectAsync(IAsyncCallData * data);
+
+    void connectLocalV1(PacketWriter * writer);
 
     // wait until all the data has been transferred.
     void waitForFinish();
@@ -412,8 +459,9 @@ public:
     TunnelSenderPtr getTunnelSender() { return tunnel_sender; }
     SyncTunnelSenderPtr getSyncTunnelSender() { return sync_tunnel_sender; }
     AsyncTunnelSenderPtr getAsyncTunnelSender() { return async_tunnel_sender; }
-    LocalTunnelSenderPtr getLocalTunnelSender() { return local_tunnel_sender; }
-    LocalTunnelFineGrainedSenderPtr getLocalTunnelFineGrainedSender() { return local_tunnel_fine_grained_sender; }
+    LocalTunnelSenderV1Ptr getLocalTunnelSenderV1() { return local_tunnel_sender_v1; }
+    LocalTunnelSenderV2Ptr getLocalTunnelSender() { return local_tunnel_sender_v2; }
+    LocalTunnelFineGrainedSenderV2Ptr getLocalTunnelFineGrainedSender() { return local_tunnel_fine_grained_sender_v2; }
 
 private:
     friend class tests::TestMPPTunnel;
@@ -462,8 +510,9 @@ private:
     // According to mode value, among the sync/async/local_tunnel_senders, only the responding sender is not null and do actual work
     SyncTunnelSenderPtr sync_tunnel_sender;
     AsyncTunnelSenderPtr async_tunnel_sender;
-    LocalTunnelSenderPtr local_tunnel_sender;
-    LocalTunnelFineGrainedSenderPtr local_tunnel_fine_grained_sender;
+    LocalTunnelSenderV1Ptr local_tunnel_sender_v1;
+    LocalTunnelSenderV2Ptr local_tunnel_sender_v2;
+    LocalTunnelFineGrainedSenderV2Ptr local_tunnel_fine_grained_sender_v2;
     std::atomic<Int64> data_size_in_queue;
 };
 using MPPTunnelPtr = std::shared_ptr<MPPTunnel>;
