@@ -29,6 +29,7 @@
 #include <DataStreams/IBlockInputStream.h>
 #include <Flash/Coprocessor/FineGrainedShuffle.h>
 #include <Flash/Coprocessor/TablesRegionsInfo.h>
+#include <Operators/OperatorProfileInfo.h>
 #include <Flash/Mpp/MPPTaskId.h>
 #include <Interpreters/SubqueryForSet.h>
 #include <Parsers/makeDummyQuery.h>
@@ -62,6 +63,12 @@ struct JoinExecuteInfo
 using MPPTunnelSetPtr = std::shared_ptr<MPPTunnelSet>;
 
 class ProcessListEntry;
+
+// a group of profile for same operator
+using OperatorProfileInfoGroup = std::vector<OperatorProfileInfoPtr>;
+
+// a group of profile for same executor
+using ExecutorProfileInfo = std::vector<OperatorProfileInfoGroup>;
 
 UInt64 inline getMaxErrorCount(const tipb::DAGRequest &)
 {
@@ -322,6 +329,9 @@ public:
     /// While when we support collcate join later, scan_context_map.size() may > 1,
     /// thus we need to pay attention to scan_context_map usage that time.
     std::unordered_map<String, DM::ScanContextPtr> scan_context_map;
+
+    /// executor_id, ExecutorProfileInfo
+    std::unordered_map<String, ExecutorProfileInfo> pipeline_profiles;
 
 private:
     void initExecutorIdToJoinIdMap();

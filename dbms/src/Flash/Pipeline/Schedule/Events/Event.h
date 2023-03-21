@@ -47,7 +47,9 @@ public:
         : exec_status(exec_status_)
         , mem_tracker(std::move(mem_tracker_))
         , log(Logger::get(req_id))
-    {}
+    {
+        // ywq todo init
+    }
     virtual ~Event() = default;
 
     void addInput(const EventPtr & input);

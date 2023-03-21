@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <Flash/Planner/PhysicalPlanHelper.h>
+#include <Flash/Pipeline/Exec/PipelineExecBuilder.h>
 
 namespace DB::PhysicalPlanHelper
 {
@@ -84,5 +85,12 @@ void addParentRequireProjectAction(
     }
     if (expr_actions->getSampleBlock().columns() > project_aliases.size())
         expr_actions->add(ExpressionAction::project(project_aliases));
+}
+
+void registerProfileInfo(PipelineExecBuilder & builder, OperatorProfileInfoGroup & profile_group)
+{
+    auto profile = std::make_shared<OperatorProfileInfo>();
+    builder.lastTransform()->setProfileInfo(profile);
+    profile_group.emplace_back(profile);
 }
 } // namespace DB::PhysicalPlanHelper
