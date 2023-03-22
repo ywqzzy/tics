@@ -14,31 +14,28 @@
 
 #pragma once
 
-#include <Flash/Pipeline/Exec/PipelineExec.h>
-#include <Flash/Pipeline/Schedule/Events/PipelineEvent.h>
+#include <Flash/Pipeline/Schedule/Events/Event.h>
+
 namespace DB
 {
-class FineGrainedPipelineEvent : public PipelineEvent
+class Context;
+
+class PipelineEvent : public Event
 {
 public:
-    FineGrainedPipelineEvent(
+    PipelineEvent(
         PipelineExecutorStatus & exec_status_,
         MemoryTrackerPtr mem_tracker_,
         const String & req_id,
-         Context & context_,
-        size_t concurrency_,
-        PipelineExecPtr && pipeline_exec_)
-        : PipelineEvent(exec_status_, std::move(mem_tracker_), req_id, context_, concurrency_)
-        , pipeline_exec(std::move(pipeline_exec_))
-    {
-        assert(pipeline_exec);
-    }
+        Context & context_,
+        size_t concurrency_)
+        : Event(exec_status_, std::move(mem_tracker_), req_id)
+        , context(context_)
+        , concurrency(concurrency_)
+    {}
 
 protected:
-    std::vector<TaskPtr> scheduleImpl() override;
-
-private:
-    // The pipeline exec for executing the specific fine-grained partition.
-    PipelineExecPtr pipeline_exec;
+    Context & context[[maybe_unused]];
+    size_t concurrency[[maybe_unused]];
 };
 } // namespace DB

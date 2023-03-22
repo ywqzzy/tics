@@ -33,5 +33,5 @@ void addParentRequireProjectAction(
     const ExpressionActionsPtr & expr_actions,
     const Names & parent_require);
 
-void registerProfileInfo(PipelineExecBuilder & builder, OperatorProfileInfoGroup & profile_group);
+// void registerProfileInfo(PipelineExecBuilder & builder, OperatorProfileInfoGroup & profile_group);
 } // namespace DB::PhysicalPlanHelper

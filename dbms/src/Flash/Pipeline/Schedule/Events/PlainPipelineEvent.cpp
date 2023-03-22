@@ -27,6 +27,8 @@ std::vector<TaskPtr> PlainPipelineEvent::scheduleImpl()
     tasks.reserve(pipeline_exec_group.size());
     for (auto & pipeline_exec : pipeline_exec_group)
         tasks.push_back(std::make_unique<PipelineTask>(mem_tracker, log->identifier(), exec_status, shared_from_this(), std::move(pipeline_exec)));
+
+    // todo add wait time
     return tasks;
 }
 

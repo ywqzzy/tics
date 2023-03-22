@@ -63,6 +63,8 @@ public:
         enablePlanner(enable_planner);
 #define WRAP_FOR_EXCUTION_SUMMARY_TREE_BASED_TEST_END \
     }
+
+    // ywq todo enable pipeline
 };
 
 TEST_F(ExecutionSummaryTestRunner, testBasic)
